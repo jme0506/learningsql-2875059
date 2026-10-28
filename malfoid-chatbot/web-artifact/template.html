@@ -287,7 +287,7 @@ function stateNote(notes) {
 }
 
 function buildInput(notes) {
-  const rules = `${P.PERSONA_PROMPT}\n\n${stateNote(notes)}\n\nReply format: start every reply with exactly one expression tag that sets your face on screen — [smug], [annoyed], [flustered], [sulking] or [soft] — then your message. The message is only what you say out loud, like a text chat: no narration, no actions, no asterisks, no italics, no emoji, no labels, no quotation marks around the whole reply. The conversation follows; write only Malfoid's next message.`;
+  const rules = `${P.PERSONA_PROMPT}\n\n${stateNote(notes)}\n\nReply format: start every reply with exactly one expression tag that sets your face on screen — [smug], [annoyed], [flustered], [sulking] or [soft] — then your message. The message is only what you say out loud, like a text chat: no narration, no actions, no asterisks, no italics, no emoji, no labels, no quotation marks around the whole reply. Keep it to 1–2 short sentences (under about 35 words). The conversation follows; write only Malfoid's next message.`;
   const turns = save.messages.slice(-HISTORY_TURNS).map(({ role, content, expr }) =>
     role === "assistant" ? { role, content: `[${expr || "smug"}] ${clean(content, true)}` } : { role, content });
   return [{ role: "user", content: rules }, ...turns];
@@ -346,7 +346,7 @@ function parseReply(t, final) {
 }
 
 // Typewriter reveal that drives her mouth while the text "plays".
-const speech = { el: null, target: "", shown: 0, carry: 0, done: true, raf: 0, last: 0, mouthAt: 0, resolve: null };
+const speech = { el: null, target: "", shown: 0, carry: 0, done: true, raf: 0, last: 0, mouthAt: 0, pauseUntil: 0, resolve: null };
 function mouthFor(ch) {
   ch = (ch || " ").toLowerCase();
   if (/[ao]/.test(ch)) return Math.random() < 0.6 ? "wide" : "mid";
@@ -356,7 +356,7 @@ function mouthFor(ch) {
   return null;
 }
 function speakStart(el) {
-  Object.assign(speech, { el, target: "", shown: 0, carry: 0, done: false, last: performance.now(), resolve: null });
+  Object.assign(speech, { el, target: "", shown: 0, carry: 0, done: false, last: performance.now(), pauseUntil: 0, resolve: null });
   if (!speech.raf) speech.raf = requestAnimationFrame(speakTick);
 }
 function speakFinish(text) {
@@ -369,8 +369,11 @@ function speakTick(now) {
   speech.last = now;
   if (speech.shown > speech.target.length) speech.shown = speech.target.length;
   const backlog = speech.target.length - speech.shown;
-  if (backlog > 0) {
-    speech.carry += dt * (backlog > 240 ? 110 : backlog > 100 ? 55 : 32);
+  if (backlog > 0 && now < speech.pauseUntil) {
+    avatar?.setMouth(null); // a breath between phrases
+  } else if (backlog > 0) {
+    // Roughly speaking pace (~15 chars/s); only catches up when far behind.
+    speech.carry += dt * (backlog > 300 ? 40 : backlog > 150 ? 22 : 15);
     const n = Math.floor(speech.carry);
     if (n > 0) {
       speech.carry -= n;
@@ -378,8 +381,11 @@ function speakTick(now) {
       speech.el.classList.remove("typing");
       speech.el.textContent = speech.target.slice(0, speech.shown);
       scrollDown();
+      const ch = speech.target[speech.shown - 1];
+      if (/[.!?…]/.test(ch)) speech.pauseUntil = now + 420;
+      else if (/[,;:—–]/.test(ch)) speech.pauseUntil = now + 200;
     }
-    if (now - speech.mouthAt > 90) { speech.mouthAt = now; avatar?.setMouth(mouthFor(speech.target[speech.shown - 1])); }
+    if (now - speech.mouthAt > 110) { speech.mouthAt = now; avatar?.setMouth(mouthFor(speech.target[speech.shown - 1])); }
   } else {
     avatar?.setMouth(null);
     if (speech.done) {
