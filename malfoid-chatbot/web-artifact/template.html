@@ -71,13 +71,13 @@ legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
 .disclaimer { font-size: 14px; color: var(--panel-soft); text-align: center; margin: 4px 0 0; }
 .notice { font-size: 15px; color: var(--danger); margin: 0; }
 
-/* Chat */
-#chat { height: 100%; display: flex; flex-direction: column; max-width: 760px; margin: 0 auto; }
-.topbar { display: flex; align-items: center; gap: 12px; padding-block: 12px 6px; }
-.portrait { width: 46px; height: 46px; flex: none; border-radius: 50%; background: linear-gradient(160deg, #f4ecd0, #d9cfa6); color: var(--green); display: grid; place-items: center; font-family: var(--display); font-weight: 700; font-size: 21px; border: 2px solid var(--silver); transition: box-shadow .4s, filter .4s; }
-.portrait.flustered { box-shadow: 0 0 0 3px var(--blush); }
-.portrait.soft { box-shadow: 0 0 0 3px var(--gold); }
-.portrait.annoyed, .portrait.sulking { filter: grayscale(.45); }
+/* Chat: avatar fills the stage, conversation docks over her lower half */
+#chat { position: relative; overflow: hidden; height: 100%; display: flex; flex-direction: column; max-width: 760px; margin: 0 auto; }
+.stage { position: absolute; inset: 0; display: flex; justify-content: center; align-items: flex-start; pointer-events: none; z-index: 0; }
+.stage::before { content: ""; position: absolute; left: 50%; top: 10%; width: min(560px, 120%); aspect-ratio: 1; transform: translateX(-50%); background: radial-gradient(circle, rgba(64,140,96,.28), rgba(64,140,96,0) 62%); }
+.avatar { position: relative; flex: none; height: min(80%, 760px); aspect-ratio: 320 / 448; margin-top: 64px; }
+.topbar, .scenebar { position: relative; z-index: 2; }
+.topbar { display: flex; align-items: center; gap: 12px; padding-block: 12px 4px; }
 .who { flex: 1; min-width: 0; }
 .name { font-family: var(--display); font-size: 18px; }
 .aka { color: var(--silver); font-size: 14px; }
@@ -87,12 +87,13 @@ legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
 #affection-bar { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--green-2), var(--blush)); transition: width .6s; }
 .icon { background: transparent; color: var(--silver); font-size: 22px; padding: 6px 10px; font-family: var(--body); }
 .scenebar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding-bottom: 8px; }
-.scenebar select { padding: 4px 8px; font-size: 15px; background: rgba(255,255,255,.08); color: var(--silver); border: 1px solid var(--line); border-radius: 8px; max-width: 100%; }
+.scenebar select { padding: 4px 8px; font-size: 15px; background: rgba(12,24,19,.6); color: var(--silver); border: 1px solid var(--line); border-radius: 8px; max-width: 100%; }
 .scenebar select option { color: #111; background: #fff; }
 .date { color: var(--silver); font-size: 15px; font-style: italic; opacity: .85; }
-#messages { flex: 1; min-height: 0; overflow-y: auto; padding-block: 8px 12px; display: flex; flex-direction: column; gap: 10px; }
-.msg { max-width: 86%; padding: 10px 14px; border-radius: 14px; line-height: 1.42; white-space: pre-wrap; overflow-wrap: anywhere; }
-.msg.assistant { align-self: flex-start; background: var(--her); color: var(--white); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.dock { position: relative; z-index: 1; margin-top: auto; display: flex; flex-direction: column; padding-top: 48px; background: linear-gradient(to top, var(--bg) 0%, rgba(12,24,19,.92) 62%, rgba(12,24,19,0) 100%); }
+#messages { max-height: 36vh; overflow-y: auto; padding-block: 8px 10px; display: flex; flex-direction: column; gap: 8px; -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 32px); mask-image: linear-gradient(to bottom, transparent 0, #000 32px); }
+.msg { max-width: 86%; padding: 9px 13px; border-radius: 14px; line-height: 1.38; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg.assistant { align-self: flex-start; background: rgba(28,52,40,.88); color: var(--white); border: 1px solid var(--line); border-bottom-left-radius: 4px; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .msg.user { align-self: flex-end; background: var(--you); color: var(--panel-ink); border-bottom-right-radius: 4px; }
 .msg.ooc { background: var(--ooc); }
 .msg.ooc::before { content: "Out of character"; display: block; font-family: var(--display); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; opacity: .7; margin-bottom: 4px; }
@@ -102,7 +103,7 @@ legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
 .starters::-webkit-scrollbar { display: none; }
 .starters button { flex: none; background: rgba(255,255,255,.07); color: var(--silver); font-family: var(--body); font-size: 15px; padding: 6px 12px; border: 1px solid var(--line); }
 #composer { display: flex; gap: 8px; padding-block: 6px 14px; }
-#composer textarea { flex: 1; min-width: 0; resize: none; max-height: 140px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--white); }
+#composer textarea { flex: 1; min-width: 0; resize: none; max-height: 140px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.07); color: var(--white); }
 #composer textarea::placeholder { color: rgba(201,206,211,.6); }
 
 /* Settings panel */
@@ -113,7 +114,7 @@ legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
 .toggle input { width: auto; }
 .banner { margin: 0 0 8px; padding: 10px 12px; border-radius: 10px; background: rgba(176,138,62,.15); border: 1px solid rgba(176,138,62,.4); color: var(--white); font-size: 15px; }
 
-@media (max-width: 520px) { .aka { display: none; } .msg { max-width: 93%; } }
+@media (max-width: 520px) { .aka { display: none; } .msg { max-width: 93%; } #messages { max-height: 30vh; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
@@ -158,8 +159,8 @@ legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
 </main>
 
 <main id="chat" hidden>
+  <div class="stage" aria-hidden="true"><div id="avatar" class="avatar"></div></div>
   <header class="topbar">
-    <div class="portrait" id="portrait" aria-hidden="true">D</div>
     <div class="who">
       <div class="name">Malfoid <span class="aka">Draconia Malfoy · Slytherin, 6th year</span></div>
       <div class="status">
@@ -174,13 +175,15 @@ legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
     <select id="scene" aria-label="Scene"></select>
     <span id="date" class="date"></span>
   </div>
-  <p id="banner" class="banner" hidden></p>
-  <section id="messages" aria-live="polite"></section>
-  <div id="starters" class="starters"></div>
-  <form id="composer">
-    <textarea id="input" rows="1" maxlength="2000" placeholder="Say something to Malfoid…" autocomplete="off"></textarea>
-    <button type="submit" class="primary" id="send">Send</button>
-  </form>
+  <div class="dock">
+    <p id="banner" class="banner" hidden></p>
+    <section id="messages" aria-live="polite"></section>
+    <div id="starters" class="starters"></div>
+    <form id="composer">
+      <textarea id="input" rows="1" maxlength="2000" placeholder="Say something to Malfoid…" autocomplete="off"></textarea>
+      <button type="submit" class="primary" id="send">Send</button>
+    </form>
+  </div>
 </main>
 
 <div id="settings" hidden>
@@ -195,15 +198,16 @@ legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
   </div>
 </div>
 
+<script>__AVATAR__</script>
 <script>
 const P = __DATA__;
 
 const STARTERS = [
-  { label: "Bump into her in the library", text: "*I'm reaching for the same book as you in the Restricted Section.* Oh— sorry, I didn't see you there." },
-  { label: "Sit next to her in Potions", text: "*I drop my bag on the bench next to yours in Potions.* Mind if I sit here? Slughorn says we're pairing up." },
+  { label: "Bump into her in the library", text: "Oh, sorry! I didn't see you there. Were you after this book too?" },
+  { label: "Sit next to her in Potions", text: "Mind if I sit here? Slughorn says we're pairing up for the Draught of Living Death." },
   { label: "Ask about Quidditch", text: "Are you playing in the next match? I heard you've been skipping practice." },
   { label: "Ask her to Hogsmeade", text: "So… there's a Hogsmeade weekend coming up. Want to go to Honeydukes with me?" },
-  { label: "Catch her near the Room of Requirement", text: "*I spot you slipping out of a door on the seventh floor that definitely wasn't there a minute ago.* Malfoy? What were you doing in there?" },
+  { label: "Catch her near the Room of Requirement", text: "Malfoy? I just saw you come out of a door on the seventh floor that wasn't there a minute ago. What were you doing in there?" },
   { label: "Gossip about Potter", text: "Have you noticed Potter staring at you across the Great Hall all week?" },
 ];
 const TERM_START = "1996-09-02", TERM_END = "1997-06-20";
@@ -215,7 +219,8 @@ const SEXUAL_NOTE = "SYSTEM NOTE: The user just steered towards sexual content. 
 const SEXUAL_LIMIT_NOTE = "SYSTEM NOTE: The user has repeatedly pushed for sexual content. End the scene in character: she is disgusted, tells them to grow up, and storms off. Keep it short.";
 
 const $ = (s) => document.querySelector(s);
-let save = null, sample = null, store = null, busy = false;
+let save = null, sample = null, store = null, busy = false, avatar = null;
+const EXPRS = ["smug", "annoyed", "flustered", "sulking", "soft"];
 
 // ---------- storage: private db doc per viewer, browser storage as a fallback ----------
 async function initStore() {
@@ -282,8 +287,9 @@ function stateNote(notes) {
 }
 
 function buildInput(notes) {
-  const rules = `${P.PERSONA_PROMPT}\n\n${stateNote(notes)}\n\nThe conversation follows. Write only Malfoid's next message — no narration about being an AI, no labels, no quotation marks around the whole reply.`;
-  const turns = save.messages.slice(-HISTORY_TURNS).map(({ role, content }) => ({ role, content }));
+  const rules = `${P.PERSONA_PROMPT}\n\n${stateNote(notes)}\n\nReply format: start every reply with exactly one expression tag that sets your face on screen — [smug], [annoyed], [flustered], [sulking] or [soft] — then your message. The message is only what you say out loud, like a text chat: no narration, no actions, no asterisks, no italics, no emoji, no labels, no quotation marks around the whole reply. The conversation follows; write only Malfoid's next message.`;
+  const turns = save.messages.slice(-HISTORY_TURNS).map(({ role, content, expr }) =>
+    role === "assistant" ? { role, content: `[${expr || "smug"}] ${clean(content, true)}` } : { role, content });
   return [{ role: "user", content: rules }, ...turns];
 }
 
@@ -316,12 +322,80 @@ async function analyse(userText, reply) {
 
 // ---------- rendering ----------
 const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const render = (t) => esc(t).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
+
+// Pure chat: drop *multi-word actions*, unwrap *single* emphasised words, hold back an unclosed '*'.
+function clean(t, final) {
+  t = t.replace(/\*\*?([^*\n]+)\*\*?/g, (_, inner) => (/\s/.test(inner.trim()) ? "" : inner));
+  t = t.replace(/(^|\s)_([^_\n]+)_(?=\s|$|[.,!?])/g, (_, pre, inner) => (/\s/.test(inner.trim()) ? pre : pre + inner));
+  const open = t.indexOf("*");
+  if (open >= 0) t = final ? t.replace(/\*/g, "") : t.slice(0, open);
+  return t.replace(/[ \t]{2,}/g, " ").replace(/ +([.,!?])/g, "$1").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+// Splits a streamed reply into its leading [expression] tag and the cleaned message.
+function parseReply(t, final) {
+  let rest = t.replace(/^\s+/, "");
+  let expr = null;
+  if (rest.startsWith("[")) {
+    const m = rest.match(/^\[([a-zA-Z]+)\]\s*/);
+    if (!m) return final ? { expr: null, text: clean(rest.replace(/^\[[^\]]*\]?/, ""), true) } : { expr: null, text: null };
+    expr = m[1].toLowerCase();
+    rest = rest.slice(m[0].length);
+  }
+  return { expr: EXPRS.includes(expr) ? expr : null, text: clean(rest, final) };
+}
+
+// Typewriter reveal that drives her mouth while the text "plays".
+const speech = { el: null, target: "", shown: 0, carry: 0, done: true, raf: 0, last: 0, mouthAt: 0, resolve: null };
+function mouthFor(ch) {
+  ch = (ch || " ").toLowerCase();
+  if (/[ao]/.test(ch)) return Math.random() < 0.6 ? "wide" : "mid";
+  if (/[ei]/.test(ch)) return "ee";
+  if (ch === "u") return "small";
+  if (/[a-z]/.test(ch)) return Math.random() < 0.5 ? "mid" : "small";
+  return null;
+}
+function speakStart(el) {
+  Object.assign(speech, { el, target: "", shown: 0, carry: 0, done: false, last: performance.now(), resolve: null });
+  if (!speech.raf) speech.raf = requestAnimationFrame(speakTick);
+}
+function speakFinish(text) {
+  speech.target = text;
+  speech.done = true;
+  return new Promise((r) => { speech.resolve = r; if (!speech.raf) speech.raf = requestAnimationFrame(speakTick); });
+}
+function speakTick(now) {
+  const dt = Math.min(0.1, (now - speech.last) / 1000);
+  speech.last = now;
+  if (speech.shown > speech.target.length) speech.shown = speech.target.length;
+  const backlog = speech.target.length - speech.shown;
+  if (backlog > 0) {
+    speech.carry += dt * (backlog > 240 ? 110 : backlog > 100 ? 55 : 32);
+    const n = Math.floor(speech.carry);
+    if (n > 0) {
+      speech.carry -= n;
+      speech.shown = Math.min(speech.target.length, speech.shown + n);
+      speech.el.classList.remove("typing");
+      speech.el.textContent = speech.target.slice(0, speech.shown);
+      scrollDown();
+    }
+    if (now - speech.mouthAt > 90) { speech.mouthAt = now; avatar?.setMouth(mouthFor(speech.target[speech.shown - 1])); }
+  } else {
+    avatar?.setMouth(null);
+    if (speech.done) {
+      speech.raf = 0;
+      if (speech.el) speech.el.textContent = speech.target;
+      speech.resolve?.();
+      return;
+    }
+  }
+  speech.raf = requestAnimationFrame(speakTick);
+}
 
 function addMessage(role, text, opts = {}) {
   const el = document.createElement("div");
   el.className = `msg ${role}${opts.ooc ? " ooc" : ""}${opts.typing ? " typing" : ""}`;
-  el.innerHTML = render(text);
+  el.textContent = role === "assistant" ? clean(text, true) : text;
   $("#messages").append(el);
   scrollDown();
   return el;
@@ -332,7 +406,7 @@ function applyState() {
   $("#mood").textContent = save.mood;
   $("#tier").textContent = tierFor(save.affection);
   $("#affection-bar").style.width = save.affection + "%";
-  $("#portrait").className = "portrait " + save.mood.toLowerCase();
+  avatar?.setExpression(save.mood.toLowerCase());
   $("#scene").value = save.scene;
   $("#date").textContent = longDate(save.inWorldDate, true);
   $("#light-mode").checked = save.storyMode === "light";
@@ -363,10 +437,10 @@ async function turn({ start, text }) {
   advanceDate();
   const notes = [];
   let category = "ok";
-  const bubble = addMessage("assistant", "Malfoid is writing… (and crossing it out)", { typing: true });
+  const bubble = addMessage("assistant", "Malfoid is typing…", { typing: true });
 
   if (start) {
-    save.messages.push({ role: "user", hidden: true, content: `*${save.user.name} appears in the ${save.scene}.* (Scene start — greet them in character, reacting to their house.)` });
+    save.messages.push({ role: "user", hidden: true, content: `(Scene start: ${save.user.name} has just turned up in the ${save.scene}. Greet them in character, reacting to their house.)` });
   } else {
     category = await moderate(text);
     if (category === "crisis") notes.push(CRISIS_NOTE);
@@ -377,14 +451,26 @@ async function turn({ start, text }) {
     save.messages.push({ role: "user", content: text });
   }
 
+  let shownExpr = null, speaking = false;
   try {
-    const { text: reply } = await sample(buildInput(notes), {
+    const { text: raw } = await sample(buildInput(notes), {
       cache: false,
-      onText: ({ text: t }) => { bubble.classList.remove("typing"); bubble.innerHTML = render(t); scrollDown(); },
+      onText: ({ text: t }) => {
+        const p = parseReply(t, false);
+        if (p.expr && p.expr !== shownExpr) { shownExpr = p.expr; avatar?.setExpression(p.expr); }
+        if (p.text) { if (!speaking) { speaking = true; speakStart(bubble); } speech.target = p.text; }
+      },
     });
+    const parsed = parseReply(raw, true);
+    const expr = category === "crisis" ? "soft" : parsed.expr || shownExpr || (category === "sexual" ? "annoyed" : null);
+    const reply = parsed.text || "…";
+    if (!speaking) speakStart(bubble);
+    if (expr) avatar?.setExpression(expr);
     if (category === "crisis") bubble.classList.add("ooc");
-    save.messages.push({ role: "assistant", content: reply.trim(), ...(category === "crisis" ? { ooc: true } : {}) });
+    save.messages.push({ role: "assistant", content: reply, ...(expr ? { expr } : {}), ...(category === "crisis" ? { ooc: true } : {}) });
+    if (expr) save.mood = expr[0].toUpperCase() + expr.slice(1);
 
+    const spoken = speakFinish(reply);
     if (category === "sexual") {
       save.affection = Math.max(0, save.affection - 5);
       save.mood = "Annoyed";
@@ -393,15 +479,18 @@ async function turn({ start, text }) {
       if (a) {
         const d = Math.max(-5, Math.min(5, Math.round(Number(a.affection_delta) || 0)));
         save.affection = Math.max(0, Math.min(100, save.affection + d));
-        if (P.MOODS.includes(a.mood)) save.mood = a.mood;
+        if (!expr && P.MOODS.includes(a.mood)) save.mood = a.mood;
         for (const m of (Array.isArray(a.new_memories) ? a.new_memories : []).slice(0, 2)) {
           if (typeof m === "string" && m.trim()) save.memories.push(m.trim().slice(0, 200));
         }
       }
     }
+    await spoken;
     applyState();
     await persist();
   } catch (e) {
+    if (speaking) { speech.done = true; speech.target = ""; }
+    avatar?.setMouth(null);
     save.messages.pop();
     bubble.remove();
     const msg = samplingError(e);
@@ -491,6 +580,7 @@ $("#new-save").addEventListener("click", async () => {
 
 // ---------- boot ----------
 (async () => {
+  avatar = window.MalfoidAvatar ? window.MalfoidAvatar.mount($("#avatar")) : null;
   $("#scene").innerHTML = P.SCENES.map((s) => `<option>${esc(s)}</option>`).join("");
   await initStore();
   save = await store.load().catch(() => null);

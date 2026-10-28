@@ -128,7 +128,7 @@ app.post("/api/saves/:id/chat", async (req, res) => {
       save.messages.push({
         role: "user",
         hidden: true,
-        content: `*${save.user.name} appears in the ${save.scene}.* (Scene start — greet them in character, reacting to their house.)`,
+        content: `(Scene start: ${save.user.name} has just turned up in the ${save.scene}. Greet them in character, reacting to their house.)`,
       });
     } else {
       const lastAssistant = [...save.messages].reverse().find((m) => m.role === "assistant");

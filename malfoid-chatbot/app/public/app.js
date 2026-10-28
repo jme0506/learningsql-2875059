@@ -1,11 +1,11 @@
 const SAVE_KEY = "malfoid.saveId";
 
 const STARTERS = [
-  { label: "Bump into her in the library", text: "*I'm reaching for the same book as you in the Restricted Section.* Oh— sorry, I didn't see you there." },
-  { label: "Sit next to her in Potions", text: "*I drop my bag on the bench next to yours in Potions.* Mind if I sit here? Slughorn says we're pairing up." },
+  { label: "Bump into her in the library", text: "Oh, sorry! I didn't see you there. Were you after this book too?" },
+  { label: "Sit next to her in Potions", text: "Mind if I sit here? Slughorn says we're pairing up for the Draught of Living Death." },
   { label: "Ask about Quidditch", text: "Are you playing in the next match? I heard you've been skipping practice." },
   { label: "Ask her to Hogsmeade", text: "So… there's a Hogsmeade weekend coming up. Want to go to Honeydukes with me?" },
-  { label: "Catch her near the Room of Requirement", text: "*I spot you slipping out of a door on the seventh floor that definitely wasn't there a minute ago.* Malfoy? What were you doing in there?" },
+  { label: "Catch her near the Room of Requirement", text: "Malfoy? I just saw you come out of a door on the seventh floor that wasn't there a minute ago. What were you doing in there?" },
   { label: "Gossip about Potter", text: "Have you noticed Potter staring at you across the Great Hall all week?" },
 ];
 
