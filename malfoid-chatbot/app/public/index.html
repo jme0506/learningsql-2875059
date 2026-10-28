@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Malfoid Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Onboarding -->
+  <main id="onboarding" class="screen" hidden>
+    <div class="parchment card">
+      <h1>Malfoid Chat</h1>
+      <p class="sub">Hogwarts, 1996. Someone in green and silver is about to notice you.</p>
+      <form id="onboard-form">
+        <label>Your name <span class="hint">(she'll mostly use your surname)</span>
+          <input name="name" required maxlength="40" placeholder="e.g. Jamie Thornton">
+        </label>
+        <fieldset>
+          <legend>Your house</legend>
+          <div class="houses">
+            <label class="house gryffindor"><input type="radio" name="house" value="Gryffindor" required><span>Gryffindor</span></label>
+            <label class="house slytherin"><input type="radio" name="house" value="Slytherin"><span>Slytherin</span></label>
+            <label class="house ravenclaw"><input type="radio" name="house" value="Ravenclaw"><span>Ravenclaw</span></label>
+            <label class="house hufflepuff"><input type="radio" name="house" value="Hufflepuff"><span>Hufflepuff</span></label>
+          </div>
+        </fieldset>
+        <div class="row">
+          <label>Year
+            <select name="year">
+              <option value="5">5th</option>
+              <option value="6" selected>6th</option>
+              <option value="7">7th</option>
+            </select>
+          </label>
+          <label>Blood status <span class="hint">(optional)</span>
+            <select name="bloodStatus">
+              <option value="">Prefer not to say</option>
+              <option value="pure-blood">Pure-blood</option>
+              <option value="half-blood">Half-blood</option>
+              <option value="Muggle-born">Muggle-born</option>
+            </select>
+          </label>
+        </div>
+        <label>Pronouns <span class="hint">(optional)</span>
+          <input name="pronouns" maxlength="20" placeholder="e.g. she/her, they/them">
+        </label>
+        <button type="submit" class="primary">Enter Hogwarts</button>
+        <p class="disclaimer">Personal fan project. Malfoid is an AI character, not affiliated with J.K. Rowling or Warner Bros.</p>
+      </form>
+    </div>
+  </main>
+
+  <!-- Chat -->
+  <main id="chat" class="screen" hidden>
+    <header class="topbar">
+      <div class="portrait" id="portrait" aria-hidden="true">D</div>
+      <div class="who">
+        <div class="name">Malfoid <span class="aka">Draconia Malfoy · Slytherin, 6th year</span></div>
+        <div class="status">
+          <span id="mood" class="chip">Smug</span>
+          <span id="tier" class="chip">Rival</span>
+          <span class="meter" title="Affection"><span id="affection-bar"></span></span>
+        </div>
+      </div>
+      <button id="settings-btn" class="icon" aria-label="Settings">⚙</button>
+    </header>
+
+    <div class="scenebar">
+      <select id="scene" aria-label="Scene"></select>
+      <span id="date" class="date"></span>
+    </div>
+
+    <section id="messages" aria-live="polite"></section>
+
+    <div id="starters" class="starters"></div>
+
+    <form id="composer">
+      <textarea id="input" rows="1" maxlength="2000" placeholder="Say something to Malfoid…" autocomplete="off"></textarea>
+      <button type="submit" class="primary" id="send">Send</button>
+    </form>
+  </main>
+
+  <dialog id="settings">
+    <form method="dialog" class="parchment">
+      <h2>Settings</h2>
+      <label class="toggle">
+        <input type="checkbox" id="light-mode">
+        Light-hearted mode <span class="hint">(no secret dark-task subplot)</span>
+      </label>
+      <p class="hint">Saved as <code id="save-id"></code></p>
+      <div class="row">
+        <button type="button" id="new-save" class="danger">Start a new save</button>
+        <button value="close" class="primary">Close</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "name": "malfoid-chat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MVP chatbot: chat with Malfoid, a 6th-year Slytherin at Hogwarts (personal fan project).",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
+    "express": "^4.21.2",
+    "zod": "^4.6.7"
+  }
+}
