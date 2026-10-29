@@ -14,7 +14,12 @@ const data = {
   LIGHT_NOTE: persona.LIGHT_NOTE,
 };
 const template = await readFile(new URL("template.html", here), "utf8");
-const avatar = await readFile(new URL("avatar.js", here), "utf8");
+// The portrait lives in private/ (git-ignored: it isn't our artwork to redistribute).
+const portrait = await readFile(new URL("private/malfoid.jpg", here));
+const avatar = (await readFile(new URL("avatar.js", here), "utf8")).replace(
+  '"__AVATAR_IMG__"',
+  () => JSON.stringify(`data:image/jpeg;base64,${portrait.toString("base64")}`),
+);
 const json = JSON.stringify(data).replace(/</g, "\\u003c");
 await writeFile(
   new URL("malfoid.html", here),

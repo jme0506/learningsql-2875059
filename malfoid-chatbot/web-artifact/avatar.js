@@ -1,289 +1,293 @@
-// Malfoid's animated avatar: an original layered SVG bust with expressions,
-// blinking, idle sway and a talking mouth. Exposes window.MalfoidAvatar.mount(el).
+// Malfoid's animated portrait: the painted image brought to life in a WebGL
+// shader (blinks, lid poses, eye movement, talking mouth, smile/frown,
+// blush, brow shifts, breathing and hair sway). The image is inlined at build
+// time by build.mjs. Exposes window.MalfoidAvatar.mount(el).
 (function () {
-  const C = {
-    hair: "#e8d9ab", hairShade: "#c7b07a", hairDeep: "#a48c58", hairLight: "#f8efcf",
-    skin: "#f7e6d8", skinShade: "#ebcdb9", blush: "#ec8f9a", lip: "#d99a95",
-    iris: "#3f7158", irisLight: "#86b79c", pupil: "#17271f", lash: "#3b2b23", brow: "#b0925c",
-    robe: "#16181b", robeShade: "#0c0d0f", lining: "#1e4f34", liningLight: "#2c6c48",
-    silver: "#c7cdd1", jumper: "#45484c", jumperShade: "#36393c", shirt: "#f1f0ea", shirtShade: "#d6d5cd",
-    tie: "#1e4f34", ribbon: "#1f5a3a", ribbonShade: "#143d27", gem: "#2fa165", choker: "#1d1e20",
-    mouth: "#6e2f37", teeth: "#fbf7f2",
+  const IMG_SRC = "__AVATAR_IMG__";
+  const IMG_W = 736, IMG_H = 1304;
+  const FOCUS = { x: 398, y: 370 }; // between the eyes and mouth, in image px
+
+  // Feature geometry in image pixels (measured on the source painting).
+  const GEO = {
+    eyeL: { a: [298, 328], b: [368, 327], up: 13, low: 9.5 },   // viewer's left: outer -> inner
+    eyeR: { a: [428, 305], b: [488, 287], up: 12, low: 10 },    // viewer's right: inner -> outer
+    mouth: { l: [386, 427], r: [454, 411] },
+    browL: [338, 299], browR: [458, 270],
+    cheekL: [326, 374], cheekR: [480, 362],
   };
 
-  // Brow transforms (rotate deg around the inner end, lift px), lid drop px,
-  // iris look offset, closed-mouth path, blush opacity.
+  // Target pose per expression.
   const EXPRESSIONS = {
-    smug:      { bl: [-3, 0],  br: [6, -5],  lid: 5, look: [0, 0],  blush: 0.12, mouth: "M188,246 C195,248 205,247 214,240" },
-    annoyed:   { bl: [10, 3],  br: [-10, 3], lid: 4, look: [0, 0],  blush: 0,    mouth: "M190,247 C196,244 204,244 210,247" },
-    flustered: { bl: [-9, -3], br: [9, -3],  lid: 0, look: [-5, 1], blush: 0.9,  mouth: "M191,246 C194,243 197,248 200,245 C203,242 206,247 209,244" },
-    sulking:   { bl: [4, 2],   br: [-4, 2],  lid: 6, look: [5, 3],  blush: 0.45, mouth: "M192,248 C196,243 204,243 208,248" },
-    soft:      { bl: [-2, -2], br: [2, -2],  lid: 2, look: [0, 0],  blush: 0.35, mouth: "M190,243 C196,249 204,249 210,243" },
+    smug:      { lid: 0.24, look: [0, 0],    smileL: 0.1,  smileR: 0.9,  blush: 0,    brow: 0.5 },
+    annoyed:   { lid: 0.28, look: [0, 0],    smileL: -0.5, smileR: -0.5, blush: 0,    brow: -2 },
+    flustered: { lid: 0,    look: [-2.4, 0.6], smileL: 0.2, smileR: 0.2, blush: 0.9,  brow: 1.8 },
+    sulking:   { lid: 0.36, look: [2, 1.4],  smileL: -0.6, smileR: -0.6, blush: 0.35, brow: -1 },
+    soft:      { lid: 0.1,  look: [0, 0],    smileL: 0.7,  smileR: 0.7,  blush: 0.4,  brow: 1 },
   };
+  const MOUTHS = { small: 2.2, mid: 4.2, wide: 6.2, ee: 3 };
 
-  // Open-mouth shapes for talking: [rx, ry, teeth?]
-  const MOUTHS = { small: [5, 2.6, false], mid: [6.5, 4.6, true], wide: [7.5, 6.6, true], ee: [8.5, 2.8, true] };
+  const VERT = `attribute vec2 aPos; void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
 
-  function eye(cx, side) {
-    // side: -1 for the viewer's left eye, +1 for the right. Negative x = inner corner, positive = outer.
-    const m = (x) => cx + side * x;
-    const shape = `M${m(-20)},193 C${m(-14)},178 ${m(10)},172 ${m(24)},184 C${m(20)},198 ${m(-6)},205 ${m(-20)},193 Z`;
-    const lash = `M${m(-19)},191 C${m(-14)},176 ${m(10)},167 ${m(25)},180 L${m(33)},175 L${m(28)},186 C${m(13)},175 ${m(-11)},179 ${m(-19)},191 Z`;
-    const lidFill = `M${m(-36)},150 L${m(36)},150 L${m(36)},181 L${m(25)},180 C${m(10)},167 ${m(-14)},176 ${m(-19)},191 L${m(-36)},191 Z`;
-    const ix = cx + side * 2;
-    const id = side < 0 ? "L" : "R";
-    return `
-      <clipPath id="eyeclip${id}"><path d="${shape}"/></clipPath>
-      <g class="eye">
-        <g clip-path="url(#eyeclip${id})">
-          <path d="${shape}" fill="#fdfbf8"/>
-          <path d="${shape}" fill="${C.skinShade}" opacity=".45" transform="translate(0,-7)"/>
-          <g class="iris">
-            <ellipse cx="${ix}" cy="190" rx="12.5" ry="14.5" fill="url(#irisGrad)"/>
-            <ellipse cx="${ix}" cy="190" rx="12.5" ry="14.5" fill="none" stroke="${C.pupil}" stroke-width="1.5" opacity=".75"/>
-            <ellipse cx="${ix}" cy="191" rx="5.5" ry="7.5" fill="${C.pupil}"/>
-            <path d="M${ix - 9},184 C${ix - 4},178 ${ix + 4},178 ${ix + 9},184" fill="none" stroke="#10201a" stroke-width="3" opacity=".5"/>
-            <ellipse cx="${ix - 4.5}" cy="185" rx="3.4" ry="4.2" fill="#fff"/>
-            <circle cx="${ix + 5}" cy="196" r="1.6" fill="#fff" opacity=".85"/>
-            <path d="M${ix - 7},199 C${ix - 3},202 ${ix + 3},202 ${ix + 7},199" fill="none" stroke="#b6e0c8" stroke-width="1.6" opacity=".6"/>
-          </g>
-          <g class="lid"><path d="${lidFill}" fill="${C.skin}"/></g>
-        </g>
-        <g class="lid"><path d="${lash}" fill="${C.lash}"/></g>
-        <path d="M${m(-14)},201 C${m(-3)},206 ${m(12)},203 ${m(21)},194" fill="none" stroke="${C.lash}" stroke-width="1.1" opacity=".5" stroke-linecap="round"/>
-        <path d="M${m(-19)},177 C${m(-6)},167 ${m(12)},166 ${m(24)},174" fill="none" stroke="#d9b3a0" stroke-width="1.3" opacity=".9"/>
-      </g>`;
+  const FRAG = `
+precision highp float;
+uniform sampler2D uTex;
+uniform vec2 uImg, uCanvas, uOffset;
+uniform float uScale, uTime, uLid, uMouth, uSmileL, uSmileR, uBlush, uBrow;
+uniform vec2 uLook;
+uniform vec2 uEyeLA, uEyeLB, uEyeRA, uEyeRB, uMouthL, uMouthR, uBrowL, uBrowR, uCheekL, uCheekR;
+uniform vec4 uEyeH; // upL, lowL, upR, lowR
+
+vec4 tex(vec2 p) { return texture2D(uTex, clamp(p, vec2(0.5), uImg - 0.5) / uImg); }
+
+// Eye local frame: t along the corner axis (0..1), s perpendicular (+ = down).
+void eyeFrame(vec2 p, vec2 a, vec2 b, out float t, out float s, out vec2 d, out vec2 n, out float len) {
+  vec2 ab = b - a; len = length(ab); d = ab / len;
+  n = vec2(-d.y, d.x); if (n.y < 0.0) n = -n;
+  t = dot(p - a, d) / len; s = dot(p - a, n);
+}
+
+// Moves the iris (look) inside the eye opening.
+vec2 eyeLook(vec2 p, vec2 q, vec2 a, vec2 b, float up, float low) {
+  float t, s, len; vec2 d, n; eyeFrame(p, a, b, t, s, d, n, len);
+  float arc = 4.0 * t * (1.0 - t);
+  float inside = step(0.0, t) * step(t, 1.0) * smoothstep(-up * arc - 1.0, -up * arc + 2.0, s) * (1.0 - smoothstep(low * arc - 2.0, low * arc + 1.0, s));
+  return q - uLook * inside;
+}
+
+// Paints the upper eyelid down to fraction uLid of the opening, with a lash line.
+vec3 eyeLid(vec2 p, vec3 col, vec2 a, vec2 b, float up, float low, float lid) {
+  if (lid < 0.01) return col;
+  float t, s, len; vec2 d, n; eyeFrame(p, a, b, t, s, d, n, len);
+  if (t < -0.06 || t > 1.06) return col;
+  float tc = clamp(t, 0.0, 1.0);
+  float arc = 4.0 * tc * (1.0 - tc);
+  float yu = -up * arc, yl = low * arc;
+  float edge = yu + lid * (yl - yu + 1.5);
+  float top = yu - 4.5 * smoothstep(0.0, 0.12, lid);
+  float cover = smoothstep(top - 1.5, top + 1.0, s) * (1.0 - smoothstep(edge - 0.6, edge + 0.6, s));
+  float ends = smoothstep(-0.06, 0.04, t) * (1.0 - smoothstep(0.96, 1.06, t));
+  // Skin for the lid comes from just under the eye on the same column.
+  // Lid skin: a blurred patch from under the eye, blended with the cheek tone.
+  vec2 under = a + d * (tc * len) + n * (yl + 9.0);
+  vec3 skin = vec3(0.0);
+  for (int i = -2; i <= 2; i++) {
+    for (int j = 0; j < 3; j++) {
+      skin += tex(under + d * float(i) * 3.0 + n * float(j) * 3.0).rgb;
+    }
+  }
+  skin /= 15.0;
+  vec3 cheek = 0.5 * (tex(uCheekL).rgb + tex(uCheekR).rgb);
+  skin = mix(skin, cheek, 0.45);
+  skin *= mix(0.98, 0.84, smoothstep(top, edge, s));
+  skin *= 1.0 - 0.06 * (1.0 - smoothstep(top, top + 3.0, s));
+  vec3 outc = mix(col, skin, cover * ends);
+  // Lash along the moving lid edge.
+  float lash = (1.0 - smoothstep(0.0, 2.0, abs(s - edge + 0.6))) * smoothstep(0.03, 0.2, lid) * ends;
+  float flick = smoothstep(0.75, 1.0, abs(tc - 0.5) * 2.0);
+  return mix(outc, vec3(0.16, 0.11, 0.09), clamp(lash * (0.85 + flick * 0.15), 0.0, 1.0));
+}
+
+void main() {
+  vec2 frag = vec2(gl_FragCoord.x, uCanvas.y - gl_FragCoord.y);
+  vec2 p = (frag - uOffset) / uScale;
+  vec2 q = p;
+  vec4 orig = tex(p);
+
+  // Breathing: torso rises slightly.
+  q.y += sin(uTime * 1.35) * 1.6 * smoothstep(430.0, 620.0, p.y);
+
+  // Hair sway on the long side locks (bright pixels away from the face).
+  float lum = dot(orig.rgb, vec3(0.299, 0.587, 0.114));
+  float side = smoothstep(95.0, 175.0, abs(p.x - 398.0));
+  float down = clamp((p.y - 250.0) / 650.0, 0.0, 1.0);
+  float hair = side * down * smoothstep(0.36, 0.55, lum);
+  q.x += hair * 3.2 * sin(uTime * 0.85 + p.y * 0.006) + hair * 1.2 * sin(uTime * 2.1 + p.y * 0.02);
+
+  // Brows lift/lower.
+  vec2 bl = (p - uBrowL) / vec2(42.0, 12.0), br = (p - uBrowR) / vec2(42.0, 12.0);
+  float brow = exp(-dot(bl, bl)) + exp(-dot(br, br));
+  q.y += uBrow * brow;
+
+  // Eyes look around.
+  q = eyeLook(p, q, uEyeLA, uEyeLB, uEyeH.x, uEyeH.y);
+  q = eyeLook(p, q, uEyeRA, uEyeRB, uEyeH.z, uEyeH.w);
+
+  // Mouth frame.
+  vec2 mc = 0.5 * (uMouthL + uMouthR);
+  vec2 md = normalize(uMouthR - uMouthL);
+  vec2 mn = vec2(-md.y, md.x); if (mn.y < 0.0) mn = -mn;
+  float halfW = 0.5 * length(uMouthR - uMouthL);
+  float u = dot(p - mc, md) / halfW;
+  float v = dot(p - mc, mn);
+  float prof = pow(max(0.0, 1.0 - u * u), 0.7);
+  float h = uMouth * prof;
+  float near = 1.0 - smoothstep(1.1, 1.5, abs(u));
+
+  // Smile / frown at the corners.
+  float wL = exp(-pow((u + 0.95) / 0.28, 2.0)) * exp(-v * v / 70.0);
+  float wR = exp(-pow((u - 0.95) / 0.28, 2.0)) * exp(-v * v / 70.0);
+  q += mn * (uSmileL * 2.6 * wL + uSmileR * 2.6 * wR);
+
+  float interior = 0.0;
+  if (uMouth > 0.05 && near > 0.0 && v > -18.0 && v < 70.0) {
+    if (v < 0.0) {
+      q += mn * (0.3 * h * (1.0 - smoothstep(0.0, 14.0, -v)));
+    } else if (v < h) {
+      interior = smoothstep(0.0, 0.9, v) * smoothstep(0.0, 0.9, h - v);
+    } else {
+      float fall = 1.0 - smoothstep(16.0, 52.0, v - h);
+      q -= mn * (h * fall);
+    }
   }
 
-  const SVG = `
-<svg viewBox="40 52 320 448" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Malfoid">
-  <defs>
-    <radialGradient id="irisGrad" cx=".5" cy=".62" r=".6">
-      <stop offset="0" stop-color="${C.irisLight}"/><stop offset=".55" stop-color="${C.iris}"/><stop offset="1" stop-color="#22402f"/>
-    </radialGradient>
-    <linearGradient id="hairGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="${C.hairLight}"/><stop offset=".35" stop-color="${C.hair}"/><stop offset="1" stop-color="${C.hairShade}"/>
-    </linearGradient>
-    <linearGradient id="hairBackGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="${C.hairShade}"/><stop offset="1" stop-color="${C.hairDeep}"/>
-    </linearGradient>
-    <linearGradient id="skinGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="${C.skin}"/><stop offset="1" stop-color="#f1d9c7"/>
-    </linearGradient>
-    <linearGradient id="robeGrad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1f2226"/><stop offset="1" stop-color="${C.robeShade}"/>
-    </linearGradient>
-    <radialGradient id="blushGrad"><stop offset="0" stop-color="${C.blush}" stop-opacity=".9"/><stop offset="1" stop-color="${C.blush}" stop-opacity="0"/></radialGradient>
-    <pattern id="tieStripes" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(-40)">
-      <rect width="14" height="14" fill="${C.tie}"/><rect y="5" width="14" height="2.2" fill="${C.silver}"/><rect y="9" width="14" height="1" fill="${C.silver}" opacity=".7"/>
-    </pattern>
-  </defs>
+  vec3 col = tex(q).rgb;
 
-  <g class="breath">
-    <!-- back hair -->
-    <g class="hair-back">
-      <path d="M200,66 C116,66 96,140 102,222 C108,300 84,380 66,468 C60,500 66,530 76,552 L324,552 C334,530 340,500 334,468 C316,380 292,300 298,222 C304,140 284,66 200,66 Z" fill="url(#hairBackGrad)"/>
-    </g>
+  if (interior > 0.0) {
+    float depth = clamp(v / max(h, 0.001), 0.0, 1.0);
+    vec3 inside = mix(vec3(0.42, 0.18, 0.17), vec3(0.24, 0.08, 0.08), 1.0 - abs(depth - 0.5) * 2.0);
+    float teeth = (1.0 - smoothstep(0.18, 0.34, depth)) * (1.0 - smoothstep(0.3, 0.5, abs(u))) * smoothstep(3.5, 5.5, uMouth);
+    inside = mix(inside, vec3(0.86, 0.8, 0.76), teeth * 0.7);
+    col = mix(col, inside, interior);
+  }
 
-    <!-- body -->
-    <g class="body">
-      <path d="M48,560 C50,430 84,352 150,326 L200,346 L250,326 C316,352 350,430 352,560 Z" fill="url(#robeGrad)"/>
-      <path d="M150,326 C120,380 112,460 116,560 L146,560 C140,470 150,392 178,338 Z" fill="${C.lining}"/>
-      <path d="M250,326 C280,380 288,460 284,560 L254,560 C260,470 250,392 222,338 Z" fill="${C.lining}"/>
-      <path d="M150,326 C121,380 113,460 117,560" fill="none" stroke="${C.liningLight}" stroke-width="2"/>
-      <path d="M250,326 C279,380 287,460 283,560" fill="none" stroke="${C.liningLight}" stroke-width="2"/>
-      <path d="M133,410 C140,430 132,450 140,470 M128,480 C136,500 128,520 134,540" fill="none" stroke="${C.silver}" stroke-width="1.2" opacity=".55"/>
-      <path d="M267,410 C260,430 268,450 260,470 M272,480 C264,500 272,520 266,540" fill="none" stroke="${C.silver}" stroke-width="1.2" opacity=".55"/>
-      <!-- jumper -->
-      <path d="M178,338 C160,400 150,480 146,560 L254,560 C250,480 240,400 222,338 L200,420 Z" fill="${C.jumper}"/>
-      <path d="M178,338 L200,420 L222,338 L216,338 L200,404 L184,338 Z" fill="${C.lining}"/>
-      <path d="M183,338 L200,410 L217,338" fill="none" stroke="${C.silver}" stroke-width="1.4" opacity=".8"/>
-      <!-- shirt + tie -->
-      <path d="M184,322 L200,404 L216,322 Z" fill="${C.shirt}"/>
-      <path d="M182,318 L172,346 L196,340 Z" fill="${C.shirt}" stroke="${C.shirtShade}" stroke-width="1"/>
-      <path d="M218,318 L228,346 L204,340 Z" fill="${C.shirt}" stroke="${C.shirtShade}" stroke-width="1"/>
-      <path d="M194,336 L206,336 L209,346 L200,352 L191,346 Z" fill="url(#tieStripes)"/>
-      <path d="M192,350 L208,350 L214,404 L200,418 L186,404 Z" fill="url(#tieStripes)"/>
-      <!-- crest -->
-      <g transform="translate(262,452)">
-        <path d="M-15,-17 L15,-17 L15,3 C15,14 6,19 0,22 C-6,19 -15,14 -15,3 Z" fill="${C.lining}" stroke="${C.silver}" stroke-width="1.4"/>
-        <path d="M5,-9 C-6,-11 -7,-2 0,0 C7,2 6,11 -5,9" fill="none" stroke="${C.silver}" stroke-width="2.2" stroke-linecap="round"/>
-      </g>
-    </g>
+  col = eyeLid(p, col, uEyeLA, uEyeLB, uEyeH.x, uEyeH.y, uLid);
+  col = eyeLid(p, col, uEyeRA, uEyeRB, uEyeH.z, uEyeH.w, uLid);
 
-    <!-- neck + choker -->
-    <path d="M181,250 L181,320 C188,330 212,330 219,320 L219,250 Z" fill="url(#skinGrad)"/>
-    <path d="M181,262 C190,280 210,280 219,262 L219,282 C210,290 190,290 181,282 Z" fill="${C.skinShade}" opacity=".7"/>
-    <path d="M180,300 C190,308 210,308 220,300 L220,307 C210,315 190,315 180,307 Z" fill="${C.choker}"/>
-    <path d="M182,303 C192,310 208,310 218,303" fill="none" stroke="${C.silver}" stroke-width=".8" stroke-dasharray="2 2" opacity=".7"/>
-    <path d="M200,308 L206,315 L200,324 L194,315 Z" fill="${C.gem}" stroke="${C.silver}" stroke-width="1.2"/>
-    <path d="M198,313 L201,311 L202,316 Z" fill="#bff0d2" opacity=".8"/>
+  // Blush.
+  vec2 cl = (p - uCheekL) / vec2(40.0, 26.0), cr = (p - uCheekR) / vec2(34.0, 24.0);
+  float blush = uBlush * (exp(-dot(cl, cl) * 1.4) + exp(-dot(cr, cr) * 1.4));
+  col = mix(col, col * vec3(1.0, 0.8, 0.8) + vec3(0.05, 0.0, 0.01), clamp(blush * 0.75, 0.0, 0.8));
 
-    <g class="head">
-      <!-- ribbon + braid behind the right ear -->
-      <g class="ribbon">
-        <path d="M266,150 C286,136 300,146 296,160 C290,170 276,166 268,160 Z" fill="${C.ribbon}"/>
-        <path d="M268,162 C276,178 282,206 276,236 L286,230 C290,204 284,176 272,160 Z" fill="${C.ribbonShade}"/>
-        <path d="M268,160 C282,170 292,192 296,214 L302,206 C296,186 286,168 270,156 Z" fill="${C.ribbon}"/>
-        <circle cx="268" cy="158" r="5" fill="${C.ribbonShade}"/>
-      </g>
-
-      <!-- ears + hoops -->
-      <path d="M141,176 C131,172 128,190 134,202 C138,210 144,208 145,200 Z" fill="${C.skinShade}"/>
-      <path d="M259,176 C269,172 272,190 266,202 C262,210 256,208 255,200 Z" fill="${C.skinShade}"/>
-      <circle class="hoop" cx="138" cy="217" r="9" fill="none" stroke="${C.silver}" stroke-width="2"/>
-      <circle class="hoop" cx="262" cy="217" r="9" fill="none" stroke="${C.silver}" stroke-width="2"/>
-
-      <!-- face -->
-      <path d="M140,150 C140,104 168,84 200,84 C232,84 260,104 260,150 C260,180 258,206 250,228 C238,256 218,272 200,280 C182,272 162,256 150,228 C142,206 140,180 140,150 Z" fill="url(#skinGrad)"/>
-      <path d="M150,226 C162,252 182,268 200,276 C218,268 238,252 250,226 C238,258 220,272 200,278 C180,272 162,258 150,226 Z" fill="${C.skinShade}" opacity=".6"/>
-
-      <!-- blush -->
-      <g class="blush">
-        <ellipse cx="160" cy="222" rx="17" ry="9" fill="url(#blushGrad)"/>
-        <ellipse cx="240" cy="222" rx="17" ry="9" fill="url(#blushGrad)"/>
-        <path d="M153,221 l5,-4 M160,222 l5,-4 M234,221 l5,-4 M241,222 l5,-4" stroke="${C.blush}" stroke-width="1.3" stroke-linecap="round" opacity=".8"/>
-      </g>
-
-      ${eye(171, -1)}
-      ${eye(229, 1)}
-
-      <!-- nose -->
-      <path d="M201,214 C203,222 203,227 198,230" fill="none" stroke="${C.skinShade}" stroke-width="1.8" stroke-linecap="round"/>
-      <path d="M197,231 L201,231" stroke="#d3ab95" stroke-width="1.4" stroke-linecap="round"/>
-
-      <!-- mouth -->
-      <g class="mouth" transform="translate(0,6)">
-        <path class="mouth-closed" d="${EXPRESSIONS.smug.mouth}" fill="none" stroke="${C.lip}" stroke-width="2.4" stroke-linecap="round"/>
-        <g class="mouth-open" display="none">
-          <ellipse class="mo-shape" cx="200" cy="245" rx="6" ry="4" fill="${C.mouth}"/>
-          <rect class="mo-teeth" x="193" y="240" width="14" height="2.6" rx="1.2" fill="${C.teeth}"/>
-          <path class="mo-lip" d="M195,251 C198,252.5 202,252.5 205,251" stroke="${C.lip}" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".8"/>
-        </g>
-      </g>
-
-      <!-- front hair: crown and side-swept fringe -->
-      <path d="M138,198 C124,118 152,66 200,62 C252,60 282,110 268,198 C262,160 252,132 236,118 C214,104 184,106 166,120 C150,134 142,160 138,198 Z" fill="url(#hairGrad)"/>
-      <path d="M150,120 C168,92 214,84 246,108 C262,124 268,150 266,176 C258,160 250,150 242,146 C246,166 248,190 246,212 C238,186 228,166 214,154 C214,166 210,178 204,186 C202,170 196,156 186,146 C180,158 170,166 158,170 C162,156 160,144 154,136 C150,150 146,162 142,172 C142,150 144,132 150,120 Z" fill="url(#hairGrad)"/>
-      <path d="M186,146 C196,128 222,120 242,146 M214,154 C222,138 236,132 246,140" fill="none" stroke="${C.hairShade}" stroke-width="1.4" opacity=".75"/>
-      <path d="M154,136 C162,122 176,116 190,118" fill="none" stroke="${C.hairShade}" stroke-width="1.2" opacity=".6"/>
-      <path d="M156,96 C176,80 204,76 230,86" fill="none" stroke="${C.hairLight}" stroke-width="6" stroke-linecap="round" opacity=".85"/>
-      <path d="M150,112 C170,96 198,90 224,98" fill="none" stroke="${C.hairLight}" stroke-width="2.5" stroke-linecap="round" opacity=".6"/>
-
-      <!-- braid along the right side -->
-      <g class="braid">
-        <ellipse cx="254" cy="128" rx="8" ry="6" fill="${C.hair}" stroke="${C.hairDeep}" stroke-width="1" transform="rotate(35 254 128)"/>
-        <ellipse cx="261" cy="139" rx="8" ry="6" fill="${C.hair}" stroke="${C.hairDeep}" stroke-width="1" transform="rotate(50 261 139)"/>
-        <ellipse cx="266" cy="151" rx="7.5" ry="5.5" fill="${C.hair}" stroke="${C.hairDeep}" stroke-width="1" transform="rotate(65 266 151)"/>
-      </g>
-
-      <!-- brows (drawn over the fringe, as in anime art) -->
-      <g class="brow brow-l"><path d="M150,163 C158,156 175,154 190,158 C176,156 161,158 150,165 Z" fill="${C.brow}" stroke="${C.brow}" stroke-width="1" stroke-linejoin="round"/></g>
-      <g class="brow brow-r"><path d="M250,163 C242,156 225,154 210,158 C224,156 239,158 250,165 Z" fill="${C.brow}" stroke="${C.brow}" stroke-width="1" stroke-linejoin="round"/></g>
-    </g>
-
-    <!-- side locks in front of the shoulders -->
-    <g class="lock lock-l">
-      <path d="M142,150 C128,210 122,270 130,318 C138,368 126,420 104,482 C124,472 142,442 152,402 C164,352 156,302 154,254 C152,214 150,180 151,156 Z" fill="url(#hairGrad)"/>
-      <path d="M138,240 C126,300 136,352 124,420" fill="none" stroke="${C.hairLight}" stroke-width="1.5" opacity=".6"/>
-      <path d="M146,190 C136,240 142,290 146,330 C150,370 138,410 122,452" fill="none" stroke="${C.hairShade}" stroke-width="2" opacity=".8"/>
-      <path d="M154,176 C150,220 156,262 156,300" fill="none" stroke="${C.hairLight}" stroke-width="2" opacity=".7"/>
-    </g>
-    <g class="lock lock-r">
-      <path d="M258,150 C272,210 278,270 270,318 C262,368 274,420 296,482 C276,472 258,442 248,402 C236,352 244,302 246,254 C248,214 250,180 249,156 Z" fill="url(#hairGrad)"/>
-      <path d="M262,240 C274,300 264,352 276,420" fill="none" stroke="${C.hairLight}" stroke-width="1.5" opacity=".6"/>
-      <path d="M254,190 C264,240 258,290 254,330 C250,370 262,410 278,452" fill="none" stroke="${C.hairShade}" stroke-width="2" opacity=".8"/>
-      <path d="M246,176 C250,220 244,262 244,300" fill="none" stroke="${C.hairLight}" stroke-width="2" opacity=".7"/>
-    </g>
-  </g>
-</svg>`;
-
-  const CSS = `
-  .mav svg { width: 100%; height: 100%; display: block; overflow: visible; }
-  .mav .breath { animation: mav-breathe 4.6s ease-in-out infinite; transform-origin: 200px 560px; }
-  .mav .head { animation: mav-sway 8s ease-in-out infinite; transform-origin: 200px 300px; transform-box: view-box; }
-  .mav .lock-l { animation: mav-lock 5.5s ease-in-out infinite; transform-origin: 152px 160px; transform-box: view-box; }
-  .mav .lock-r { animation: mav-lock 6.2s ease-in-out infinite reverse; transform-origin: 248px 160px; transform-box: view-box; }
-  .mav .hoop { animation: mav-hoop 3.4s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 0; }
-  .mav .lid { transition: transform .11s ease-out; }
-  .mav .iris { transition: transform .35s ease; }
-  .mav .brow { transition: transform .3s ease; transform-box: fill-box; }
-  .mav .brow-l { transform-origin: 100% 50%; }
-  .mav .brow-r { transform-origin: 0% 50%; }
-  .mav .blush { transition: opacity .5s ease; }
-  @keyframes mav-breathe { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-3px) } }
-  @keyframes mav-sway { 0%,100% { transform: rotate(-.8deg) } 50% { transform: rotate(.9deg) } }
-  @keyframes mav-lock { 0%,100% { transform: rotate(-.9deg) } 50% { transform: rotate(1.1deg) } }
-  @keyframes mav-hoop { 0%,100% { transform: rotate(-6deg) } 50% { transform: rotate(6deg) } }
-  @media (prefers-reduced-motion: reduce) { .mav .breath, .mav .head, .mav .lock-l, .mav .lock-r, .mav .hoop { animation: none } }
-  `;
+  gl_FragColor = vec4(col, 1.0);
+}`;
 
   function mount(el) {
-    if (!document.getElementById("mav-style")) {
-      const st = document.createElement("style");
-      st.id = "mav-style";
-      st.textContent = CSS;
-      document.head.append(st);
-    }
     el.classList.add("mav");
-    el.innerHTML = SVG;
-    const q = (s) => el.querySelectorAll(s);
-    const lids = q(".lid"), irises = q(".iris");
-    const browL = el.querySelector(".brow-l"), browR = el.querySelector(".brow-r");
-    const blush = el.querySelector(".blush");
-    const closed = el.querySelector(".mouth-closed"), open = el.querySelector(".mouth-open");
-    const moShape = el.querySelector(".mo-shape"), moTeeth = el.querySelector(".mo-teeth");
+    el.innerHTML = "";
+    const img = new Image();
+    img.alt = "";
+    img.src = IMG_SRC;
+    const canvas = document.createElement("canvas");
+    canvas.style.cssText = "position:absolute;inset:0;width:100%;height:100%;display:block";
+    el.append(canvas);
 
-    let expr = EXPRESSIONS.smug, exprName = "smug", blinking = false, glance = [0, 0];
+    const state = { lid: 0.24, look: [0, 0], smileL: 0.1, smileR: 0.9, blush: 0, brow: 0.5, mouth: 0 };
+    let target = { ...EXPRESSIONS.smug };
+    let mouthTarget = 0, exprName = "smug", blinkUntil = 0, glance = [0, 0];
 
-    const setLids = (px) => lids.forEach((l) => (l.style.transform = `translateY(${px}px)`));
-    const setLook = () => irises.forEach((i) => (i.style.transform = `translate(${expr.look[0] + glance[0]}px, ${expr.look[1] + glance[1]}px)`));
-
-    function setExpression(name) {
-      const e = EXPRESSIONS[String(name).toLowerCase()];
-      if (!e) return;
-      expr = e;
-      exprName = String(name).toLowerCase();
-      browL.style.transform = `translateY(${e.bl[1]}px) rotate(${e.bl[0]}deg)`;
-      browR.style.transform = `translateY(${e.br[1]}px) rotate(${e.br[0]}deg)`;
-      blush.style.opacity = e.blush;
-      closed.setAttribute("d", e.mouth);
-      if (!blinking) setLids(e.lid);
-      setLook();
+    const gl = canvas.getContext("webgl", { antialias: false, premultipliedAlpha: false });
+    if (!gl) {
+      // No WebGL: show the still painting.
+      img.style.cssText = "position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:54% 22%";
+      canvas.replaceWith(img);
+      return { setExpression() {}, setMouth() {}, blink() {}, get expression() { return exprName; } };
     }
 
-    function setMouth(shape) {
-      const m = MOUTHS[shape];
-      if (!m) { open.setAttribute("display", "none"); closed.removeAttribute("display"); return; }
-      closed.setAttribute("display", "none");
-      open.removeAttribute("display");
-      moShape.setAttribute("rx", m[0]);
-      moShape.setAttribute("ry", m[1]);
-      moShape.setAttribute("cy", 244 + m[1] * 0.35);
-      moTeeth.setAttribute("visibility", m[2] ? "visible" : "hidden");
-      moTeeth.setAttribute("y", 244 + m[1] * 0.35 - m[1] + 0.4);
-      moTeeth.setAttribute("width", m[0] * 1.6);
-      moTeeth.setAttribute("x", 200 - m[0] * 0.8);
-    }
+    const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+    const prog = gl.createProgram();
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, VERT));
+    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FRAG));
+    gl.linkProgram(prog);
+    gl.useProgram(prog);
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    const aPos = gl.getAttribLocation(prog, "aPos");
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+    const U = {};
+    for (const n of ["uImg", "uCanvas", "uOffset", "uScale", "uTime", "uLid", "uMouth", "uSmileL", "uSmileR", "uBlush", "uBrow", "uLook",
+      "uEyeLA", "uEyeLB", "uEyeRA", "uEyeRB", "uMouthL", "uMouthR", "uBrowL", "uBrowR", "uCheekL", "uCheekR", "uEyeH"]) U[n] = gl.getUniformLocation(prog, n);
+    gl.uniform2f(U.uImg, IMG_W, IMG_H);
+    gl.uniform2fv(U.uEyeLA, GEO.eyeL.a); gl.uniform2fv(U.uEyeLB, GEO.eyeL.b);
+    gl.uniform2fv(U.uEyeRA, GEO.eyeR.a); gl.uniform2fv(U.uEyeRB, GEO.eyeR.b);
+    gl.uniform4f(U.uEyeH, GEO.eyeL.up, GEO.eyeL.low, GEO.eyeR.up, GEO.eyeR.low);
+    gl.uniform2fv(U.uMouthL, GEO.mouth.l); gl.uniform2fv(U.uMouthR, GEO.mouth.r);
+    gl.uniform2fv(U.uBrowL, GEO.browL); gl.uniform2fv(U.uBrowR, GEO.browR);
+    gl.uniform2fv(U.uCheekL, GEO.cheekL); gl.uniform2fv(U.uCheekR, GEO.cheekR);
 
-    function blink() {
-      blinking = true;
-      setLids(17);
-      setTimeout(() => { blinking = false; setLids(expr.lid); }, 130);
+    const texture = gl.createTexture();
+    let ready = false;
+    img.onload = () => {
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
+      ready = true;
+    };
+
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const start = performance.now();
+    let last = start;
+
+    function frame(now) {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const w = Math.max(1, Math.round(canvas.clientWidth * Math.min(devicePixelRatio || 1, 2)));
+      const h = Math.max(1, Math.round(canvas.clientHeight * Math.min(devicePixelRatio || 1, 2)));
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+
+      // Ease towards the target pose; blinks override the lid.
+      const k = 1 - Math.exp(-dt * 7);
+      const blinking = now < blinkUntil;
+      state.lid += ((blinking ? 1 : target.lid) - state.lid) * (blinking ? 1 - Math.exp(-dt * 40) : k);
+      state.look[0] += (target.look[0] + glance[0] - state.look[0]) * k;
+      state.look[1] += (target.look[1] + glance[1] - state.look[1]) * k;
+      for (const key of ["smileL", "smileR", "blush", "brow"]) state[key] += (target[key] - state[key]) * k;
+      state.mouth += (mouthTarget - state.mouth) * (1 - Math.exp(-dt * 22));
+
+      if (ready) {
+        // Cover the stage, keeping the face in the upper-middle.
+        const t = reduced ? 0 : (now - start) / 1000;
+        const scale = Math.max(w / IMG_W, h / IMG_H) * 1.1;
+        let ox = w / 2 - FOCUS.x * scale;
+        let oy = h * 0.36 - FOCUS.y * scale;
+        ox = Math.min(0, Math.max(w - IMG_W * scale, ox));
+        oy = Math.min(0, Math.max(h - IMG_H * scale, oy));
+        oy += Math.sin(t * 1.35) * 0.9 * scale;
+        gl.viewport(0, 0, w, h);
+        gl.uniform2f(U.uCanvas, w, h);
+        gl.uniform2f(U.uOffset, ox, oy);
+        gl.uniform1f(U.uScale, scale);
+        gl.uniform1f(U.uTime, t);
+        gl.uniform1f(U.uLid, state.lid);
+        gl.uniform1f(U.uMouth, state.mouth);
+        gl.uniform1f(U.uSmileL, state.smileL);
+        gl.uniform1f(U.uSmileR, state.smileR);
+        gl.uniform1f(U.uBlush, state.blush);
+        gl.uniform1f(U.uBrow, state.brow);
+        gl.uniform2f(U.uLook, state.look[0], state.look[1]);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      }
+      requestAnimationFrame(frame);
     }
+    requestAnimationFrame(frame);
+
+    function blink() { blinkUntil = performance.now() + 110; }
     (function blinkLoop() {
-      setTimeout(() => { blink(); if (Math.random() < 0.2) setTimeout(blink, 260); blinkLoop(); }, 2200 + Math.random() * 3800);
+      setTimeout(() => { blink(); if (Math.random() < 0.2) setTimeout(blink, 280); blinkLoop(); }, 2400 + Math.random() * 3600);
     })();
     (function glanceLoop() {
       setTimeout(() => {
-        glance = Math.random() < 0.55 ? [0, 0] : [(Math.random() - 0.5) * 6, (Math.random() - 0.5) * 2.5];
-        setLook();
+        glance = Math.random() < 0.55 ? [0, 0] : [(Math.random() - 0.5) * 2.6, (Math.random() - 0.5) * 1.2];
         glanceLoop();
       }, 1800 + Math.random() * 3000);
     })();
 
-    setExpression("smug");
-    return { setExpression, setMouth, blink, get expression() { return exprName; } };
+    function setExpression(name) {
+      const e = EXPRESSIONS[String(name).toLowerCase()];
+      if (!e) return;
+      target = { ...e };
+      exprName = String(name).toLowerCase();
+    }
+    function setMouth(shape) { mouthTarget = MOUTHS[shape] || 0; }
+
+    // Test hook: pin a pose without easing.
+    function pose(p) { Object.assign(state, p); Object.assign(target, p); if (p.mouth != null) mouthTarget = p.mouth; }
+
+    return { setExpression, setMouth, blink, pose, get expression() { return exprName; } };
   }
 
   window.MalfoidAvatar = { mount, expressions: Object.keys(EXPRESSIONS) };

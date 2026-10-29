@@ -27,7 +27,7 @@
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html, body { height: 100%; }
+html, body { height: 100%; margin: 0; }
 body {
   background: radial-gradient(ellipse at top, var(--bg-2), var(--bg) 70%) fixed, var(--bg);
   color: var(--white);
@@ -72,10 +72,10 @@ legend { font-weight: 600; padding: 0; margin-bottom: 6px; }
 .notice { font-size: 15px; color: var(--danger); margin: 0; }
 
 /* Chat: avatar fills the stage, conversation docks over her lower half */
-#chat { position: relative; overflow: hidden; height: 100%; display: flex; flex-direction: column; max-width: 760px; margin: 0 auto; }
-.stage { position: absolute; inset: 0; display: flex; justify-content: center; align-items: flex-start; pointer-events: none; z-index: 0; }
-.stage::before { content: ""; position: absolute; left: 50%; top: 10%; width: min(560px, 120%); aspect-ratio: 1; transform: translateX(-50%); background: radial-gradient(circle, rgba(64,140,96,.28), rgba(64,140,96,0) 62%); }
-.avatar { position: relative; flex: none; height: min(80%, 760px); aspect-ratio: 320 / 448; margin-top: 64px; }
+#chat { position: relative; height: 100%; display: flex; flex-direction: column; max-width: 760px; margin: 0 auto; }
+.stage { position: absolute; inset: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))) 0 calc(-1 * max(16px, env(safe-area-inset-right, 0px))); display: flex; justify-content: center; align-items: flex-start; pointer-events: none; z-index: 0; overflow: hidden; }
+.stage::after { content: ""; position: absolute; inset: 0 0 auto; height: 170px; background: linear-gradient(to bottom, rgba(8,14,11,.85), rgba(8,14,11,0)); }
+.avatar { position: absolute; inset: 0; }
 .topbar, .scenebar { position: relative; z-index: 2; }
 .topbar { display: flex; align-items: center; gap: 12px; padding-block: 12px 4px; }
 .who { flex: 1; min-width: 0; }
